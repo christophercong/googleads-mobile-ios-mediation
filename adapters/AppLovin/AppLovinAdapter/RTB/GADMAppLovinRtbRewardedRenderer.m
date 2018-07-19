@@ -13,13 +13,19 @@
 
 #import <AppLovinSDK/AppLovinSDK.h>
 
-/// Rewarded Video Delegate.
+/// Rewarded Delegate.
 @interface GADMAppLovinRtbRewardedDelegate : NSObject <ALAdLoadDelegate, ALAdDisplayDelegate, ALAdVideoPlaybackDelegate>
 @property (nonatomic, weak) GADMAppLovinRtbRewardedRenderer *parentRenderer;
 - (instancetype)initWithParentRenderer:(GADMAppLovinRtbRewardedRenderer *)parentRenderer;
 @end
 
-@interface GADMAppLovinRtbRewardedRenderer () <GADMediationRewardedAd, ALAdRewardDelegate>
+/// Rewarded Ad Reward Delegate.
+@interface GADMAppLovinRtbRewardedAdRewardDelegate : NSObject <ALAdRewardDelegate>
+@property (nonatomic, weak) GADMAppLovinRtbRewardedRenderer *parentRenderer;
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbRewardedRenderer *)parentRenderer;
+@end
+
+@interface GADMAppLovinRtbRewardedRenderer () <GADMediationRewardedAd>
 
 /// Data used to render an RTB rewarded ad.
 @property (nonatomic, strong) GADMediationRewardedAdConfiguration *adConfiguration;
@@ -57,7 +63,7 @@
     // Create rewarded video object
     self.incentivizedAd = [[ALIncentivizedInterstitialAd alloc] initWithSdk:self.sdk];
     
-    GADMAppLovinRtbRewardedDelegate *delegate = [[GADMAppLovinRtbRewardedDelegate alloc] initWithParentRenderer: self];
+    GADMAppLovinRtbRewardedDelegate *delegate = [[GADMAppLovinRtbRewardedDelegate alloc] initWithParentRenderer:self];
     self.incentivizedAd.adDisplayDelegate = delegate;
     self.incentivizedAd.adVideoPlaybackDelegate = delegate;
     
@@ -72,37 +78,10 @@
     GADMAdapterAppLovinExtras *extras = self.adConfiguration.extras;
     self.sdk.settings.muted = extras.muteAudio;
     
+    GADMAppLovinRtbRewardedDelegate *rewardDelegate = [[GADMAppLovinRtbRewardedDelegate alloc] initWithParentRenderer:self];
     [self.incentivizedAd showOver:[UIApplication sharedApplication].keyWindow
                          renderAd:self.ad
-                        andNotify:self];
-}
-
-#pragma mark - Reward Delegate
-
-- (void)rewardValidationRequestForAd:(ALAd *)ad
-          didExceedQuotaWithResponse:(NSDictionary *)response {
-    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request for ad did exceed quota with response: %@", response];
-}
-
-- (void)rewardValidationRequestForAd:(ALAd *)ad didFailWithError:(NSInteger)responseCode {
-    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request for ad failed with error code: %d", responseCode];
-}
-
-- (void)rewardValidationRequestForAd:(ALAd *)ad wasRejectedWithResponse:(NSDictionary *)response {
-    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request was rejected with response: %@", response];
-}
-
-- (void)userDeclinedToViewAd:(ALAd *)ad {
-    [GADMAdapterAppLovinUtils log:@"User declined to view rewarded video"];
-}
-
-- (void)rewardValidationRequestForAd:(ALAd *)ad didSucceedWithResponse:(NSDictionary *)response {
-    NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:response[@"amount"]];
-    NSString *currency = response[@"currency"];
-    
-    [GADMAdapterAppLovinUtils log:@"Rewarded %@ %@", amount, currency];
-    
-    self.reward = [[GADAdReward alloc] initWithRewardType:currency rewardAmount:amount];
+                        andNotify:rewardDelegate];
 }
 
 @end
@@ -155,7 +134,7 @@
     [self.parentRenderer.adEventDelegate willDismissFullScreenView];
     [self.parentRenderer.adEventDelegate didDismissFullScreenView];
     
-    // Clear states in the case this listener gets re-used in the future.
+    // Clear states in the case this delegate gets re-used in the future.
     self.parentRenderer.fullyWatched = NO;
     self.parentRenderer.reward = nil;
 }
@@ -179,6 +158,48 @@
     [GADMAdapterAppLovinUtils log:@"Rewarded video playback ended at playback percent: %lu%%",
      percentPlayed.unsignedIntegerValue];
     [self.parentRenderer.adEventDelegate didEndVideo];
+}
+
+@end
+
+@implementation GADMAppLovinRtbRewardedAdRewardDelegate
+
+#pragma mark - Initialization
+
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbRewardedRenderer *)parentRenderer {
+    self = [super init];
+    if (self) {
+        self.parentRenderer = parentRenderer;
+    }
+    return self;
+}
+
+#pragma mark - Reward Delegate
+
+- (void)rewardValidationRequestForAd:(ALAd *)ad
+          didExceedQuotaWithResponse:(NSDictionary *)response {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request for ad did exceed quota with response: %@", response];
+}
+
+- (void)rewardValidationRequestForAd:(ALAd *)ad didFailWithError:(NSInteger)responseCode {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request for ad failed with error code: %d", responseCode];
+}
+
+- (void)rewardValidationRequestForAd:(ALAd *)ad wasRejectedWithResponse:(NSDictionary *)response {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request was rejected with response: %@", response];
+}
+
+- (void)userDeclinedToViewAd:(ALAd *)ad {
+    [GADMAdapterAppLovinUtils log:@"User declined to view rewarded video"];
+}
+
+- (void)rewardValidationRequestForAd:(ALAd *)ad didSucceedWithResponse:(NSDictionary *)response {
+    NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:response[@"amount"]];
+    NSString *currency = response[@"currency"];
+    
+    [GADMAdapterAppLovinUtils log:@"Rewarded %@ %@", amount, currency];
+    
+    self.parentRenderer.reward = [[GADAdReward alloc] initWithRewardType:currency rewardAmount:amount];
 }
 
 @end
