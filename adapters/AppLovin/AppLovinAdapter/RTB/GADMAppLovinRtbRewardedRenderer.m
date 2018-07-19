@@ -13,7 +13,13 @@
 
 #import <AppLovinSDK/AppLovinSDK.h>
 
-@interface GADMAppLovinRtbRewardedRenderer () <GADMediationRewardedAd, ALAdLoadDelegate, ALAdDisplayDelegate, ALAdVideoPlaybackDelegate, ALAdRewardDelegate>
+/// Rewarded Video Delegate.
+@interface GADMAppLovinRtbRewardedDelegate : NSObject <ALAdLoadDelegate, ALAdDisplayDelegate, ALAdVideoPlaybackDelegate>
+@property (nonatomic, weak) GADMAppLovinRtbRewardedRenderer *parentRenderer;
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbRewardedRenderer *)parentRenderer;
+@end
+
+@interface GADMAppLovinRtbRewardedRenderer () <GADMediationRewardedAd, ALAdRewardDelegate>
 
 /// Data used to render an RTB rewarded ad.
 @property (nonatomic, strong) GADMediationRewardedAdConfiguration *adConfiguration;
@@ -36,7 +42,7 @@
 @implementation GADMAppLovinRtbRewardedRenderer
 
 - (instancetype)initWithAdConfiguration:(GADMediationRewardedAdConfiguration *)adConfiguration
-                      completionHandler:(nonnull GADRewardedRenderCompletionHandler)handler {
+                      completionHandler:(GADRewardedRenderCompletionHandler)handler {
     self = [super init];
     if (self) {
         self.adConfiguration = adConfiguration;
@@ -48,13 +54,15 @@
 }
 
 - (void)loadAd {
-    // Create incentivized interstitial object
+    // Create rewarded video object
     self.incentivizedAd = [[ALIncentivizedInterstitialAd alloc] initWithSdk:self.sdk];
-    self.incentivizedAd.adDisplayDelegate = self;
-    self.incentivizedAd.adVideoPlaybackDelegate = self;
+    
+    GADMAppLovinRtbRewardedDelegate *delegate = [[GADMAppLovinRtbRewardedDelegate alloc] initWithParentRenderer: self];
+    self.incentivizedAd.adDisplayDelegate = delegate;
+    self.incentivizedAd.adVideoPlaybackDelegate = delegate;
     
     // Load ad
-    [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:self];
+    [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:delegate];
 }
 
 #pragma mark - GADMediationInterstitialAd
@@ -69,60 +77,11 @@
                         andNotify:self];
 }
 
-#pragma mark - Ad Load Delegate
-
-- (void)adService:(ALAdService *)adService didLoadAd:(ALAd *)ad {
-    [GADMAdapterAppLovinUtils log:@"Rewarded video did load ad: %@", ad.adIdNumber];
-    
-    self.ad = ad;
-    
-    self.adEventDelegate = self.renderCompletionHandler(self, nil);
-}
-
-- (void)adService:(ALAdService *)adService didFailToLoadAdWithError:(int)code {
-    [GADMAdapterAppLovinUtils log:@"Failed to load rewarded video with error: %d", code];
-    
-    NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
-                                         code:[GADMAdapterAppLovinUtils toAdMobErrorCode:code]
-                                     userInfo:nil];
-    self.renderCompletionHandler(nil, error);
-}
-
-#pragma mark - Ad Display Delegate
-
-- (void)ad:(ALAd *)ad wasDisplayedIn:(UIView *)view {
-    [GADMAdapterAppLovinUtils log:@"Rewarded video displayed"];
-    [self.adEventDelegate reportImpression];
-}
-
-- (void)ad:(ALAd *)ad wasHiddenIn:(UIView *)view {
-    [GADMAdapterAppLovinUtils log:@"Rewarded video hidden"];
-}
-
-- (void)ad:(ALAd *)ad wasClickedIn:(UIView *)view {
-    [GADMAdapterAppLovinUtils log:@"Interstitial clicked"];
-    [self.adEventDelegate reportClick];
-    [self.adEventDelegate willBackgroundApplication];
-}
-
-#pragma mark - Video Playback Delegate
-
-- (void)videoPlaybackBeganInAd:(ALAd *)ad {
-    [GADMAdapterAppLovinUtils log:@"Interstitial video playback began"];
-}
-
-- (void)videoPlaybackEndedInAd:(ALAd *)ad
-             atPlaybackPercent:(NSNumber *)percentPlayed
-                  fullyWatched:(BOOL)wasFullyWatched {
-    [GADMAdapterAppLovinUtils log:@"Interstitial video playback ended at playback percent: %lu%%",
-     percentPlayed.unsignedIntegerValue];
-}
-
 #pragma mark - Reward Delegate
 
 - (void)rewardValidationRequestForAd:(ALAd *)ad
           didExceedQuotaWithResponse:(NSDictionary *)response {
-    [GADMAdapterAppLovinUtils log:@"Rrewarded video validation request for ad did exceed quota with response: %@", response];
+    [GADMAdapterAppLovinUtils log:@"Rewarded video validation request for ad did exceed quota with response: %@", response];
 }
 
 - (void)rewardValidationRequestForAd:(ALAd *)ad didFailWithError:(NSInteger)responseCode {
@@ -134,7 +93,7 @@
 }
 
 - (void)userDeclinedToViewAd:(ALAd *)ad {
-    [GADMAdapterAppLovinUtils log:@"User deliced to view rewarded video"];
+    [GADMAdapterAppLovinUtils log:@"User declined to view rewarded video"];
 }
 
 - (void)rewardValidationRequestForAd:(ALAd *)ad didSucceedWithResponse:(NSDictionary *)response {
@@ -144,6 +103,82 @@
     [GADMAdapterAppLovinUtils log:@"Rewarded %@ %@", amount, currency];
     
     self.reward = [[GADAdReward alloc] initWithRewardType:currency rewardAmount:amount];
+}
+
+@end
+
+@implementation GADMAppLovinRtbRewardedDelegate
+
+#pragma mark - Initialization
+
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbRewardedRenderer *)parentRenderer {
+    self = [super init];
+    if (self) {
+        self.parentRenderer = parentRenderer;
+    }
+    return self;
+}
+
+#pragma mark - Ad Load Delegate
+
+- (void)adService:(ALAdService *)adService didLoadAd:(ALAd *)ad {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video did load ad: %@", ad.adIdNumber];
+    
+    self.parentRenderer.ad = ad;
+    
+    self.parentRenderer.adEventDelegate = self.parentRenderer.renderCompletionHandler(self, nil);
+}
+
+- (void)adService:(ALAdService *)adService didFailToLoadAdWithError:(int)code {
+    [GADMAdapterAppLovinUtils log:@"Failed to load rewarded video with error: %d", code];
+    
+    NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
+                                         code:[GADMAdapterAppLovinUtils toAdMobErrorCode:code]
+                                     userInfo:nil];
+    self.parentRenderer.renderCompletionHandler(nil, error);
+}
+
+#pragma mark - Ad Display Delegate
+
+- (void)ad:(ALAd *)ad wasDisplayedIn:(UIView *)view {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video displayed"];
+    [self.parentRenderer.adEventDelegate reportImpression];
+}
+
+- (void)ad:(ALAd *)ad wasHiddenIn:(UIView *)view {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video hidden"];
+    
+    if (self.parentRenderer.fullyWatched && self.parentRenderer.reward) {
+        [self.parentRenderer.adEventDelegate didRewardUserWithReward:self.parentRenderer.reward];
+    }
+    
+    [self.parentRenderer.adEventDelegate willDismissFullScreenView];
+    [self.parentRenderer.adEventDelegate didDismissFullScreenView];
+    
+    // Clear states in the case this listener gets re-used in the future.
+    self.parentRenderer.fullyWatched = NO;
+    self.parentRenderer.reward = nil;
+}
+
+- (void)ad:(ALAd *)ad wasClickedIn:(UIView *)view {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video clicked"];
+    [self.parentRenderer.adEventDelegate reportClick];
+    [self.parentRenderer.adEventDelegate willBackgroundApplication];
+}
+
+#pragma mark - Video Playback Delegate
+
+- (void)videoPlaybackBeganInAd:(ALAd *)ad {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video playback began"];
+    [self.parentRenderer.adEventDelegate didStartPlayingVideo];
+}
+
+- (void)videoPlaybackEndedInAd:(ALAd *)ad
+             atPlaybackPercent:(NSNumber *)percentPlayed
+                  fullyWatched:(BOOL)wasFullyWatched {
+    [GADMAdapterAppLovinUtils log:@"Rewarded video playback ended at playback percent: %lu%%",
+     percentPlayed.unsignedIntegerValue];
+    [self.parentRenderer.adEventDelegate didEndVideo];
 }
 
 @end

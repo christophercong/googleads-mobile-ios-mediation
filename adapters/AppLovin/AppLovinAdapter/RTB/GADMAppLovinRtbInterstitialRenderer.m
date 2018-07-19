@@ -13,7 +13,13 @@
 
 #import <AppLovinSDK/AppLovinSDK.h>
 
-@interface GADMAppLovinRtbInterstitialRenderer () <GADMediationInterstitialAd, ALAdLoadDelegate, ALAdDisplayDelegate, ALAdVideoPlaybackDelegate>
+/// Interstitial Delegate.
+@interface GADMAppLovinRtbInterstitialDelegate : NSObject <ALAdLoadDelegate, ALAdDisplayDelegate, ALAdVideoPlaybackDelegate>
+@property (nonatomic, weak) GADMAppLovinRtbInterstitialRenderer *parentRenderer;
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbInterstitialRenderer *)parentRenderer;
+@end
+
+@interface GADMAppLovinRtbInterstitialRenderer () <GADMediationInterstitialAd>
 
 /// Data used to render an RTB interstitial ad.
 @property (nonatomic, strong) GADMediationInterstitialAdConfiguration *adConfiguration;
@@ -34,7 +40,7 @@
 @implementation GADMAppLovinRtbInterstitialRenderer
 
 - (instancetype)initWithAdConfiguration:(GADMediationInterstitialAdConfiguration *)adConfiguration
-                      completionHandler:(nonnull GADInterstitialRenderCompletionHandler)handler {
+                      completionHandler:(GADInterstitialRenderCompletionHandler)handler {
     self = [super init];
     if (self) {
         self.adConfiguration = adConfiguration;
@@ -48,11 +54,13 @@
 - (void)loadAd {
     // Create interstitial object
     self.interstitialAd = [[ALInterstitialAd alloc] initWithSdk:self.sdk];
-    self.interstitialAd.adDisplayDelegate = self;
-    self.interstitialAd.adVideoPlaybackDelegate = self;
+    
+    GADMAppLovinRtbInterstitialDelegate *delegate = [[GADMAppLovinRtbInterstitialDelegate alloc] initWithParentRenderer:self];
+    self.interstitialAd.adDisplayDelegate = delegate;
+    self.interstitialAd.adVideoPlaybackDelegate = delegate;
     
     // Load ad
-    [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:self];
+    [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:delegate];
 }
 
 #pragma mark - GADMediationInterstitialAd
@@ -66,14 +74,28 @@
                         andRender:self.ad];
 }
 
+@end
+
+@implementation GADMAppLovinRtbInterstitialDelegate
+
+#pragma mark - Initialization
+
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbInterstitialRenderer *)parentRenderer {
+    self = [super init];
+    if (self) {
+        self.parentRenderer = parentRenderer;
+    }
+    return self;
+}
+
 #pragma mark - Ad Load Delegate
 
 - (void)adService:(ALAdService *)adService didLoadAd:(ALAd *)ad {
     [GADMAdapterAppLovinUtils log:@"Interstitial did load ad: %@", ad.adIdNumber];
     
-    self.ad = ad;
+    self.parentRenderer.ad = ad;
     
-    self.adEventDelegate = self.renderCompletionHandler(self, nil);
+    self.parentRenderer.adEventDelegate = self.parentRenderer.renderCompletionHandler(self, nil);
 }
 
 - (void)adService:(ALAdService *)adService didFailToLoadAdWithError:(int)code {
@@ -82,24 +104,26 @@
     NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
                                          code:[GADMAdapterAppLovinUtils toAdMobErrorCode:code]
                                      userInfo:nil];
-    self.renderCompletionHandler(nil, error);
+    self.parentRenderer.renderCompletionHandler(nil, error);
 }
 
 #pragma mark - Ad Display Delegate
 
 - (void)ad:(ALAd *)ad wasDisplayedIn:(UIView *)view {
     [GADMAdapterAppLovinUtils log:@"Interstitial displayed"];
-    [self.adEventDelegate reportImpression];
+    [self.parentRenderer.adEventDelegate reportImpression];
 }
 
 - (void)ad:(ALAd *)ad wasHiddenIn:(UIView *)view {
     [GADMAdapterAppLovinUtils log:@"Interstitial hidden"];
+    [self.parentRenderer.adEventDelegate willDismissFullScreenView];
+    [self.parentRenderer.adEventDelegate didDismissFullScreenView];
 }
 
 - (void)ad:(ALAd *)ad wasClickedIn:(UIView *)view {
     [GADMAdapterAppLovinUtils log:@"Interstitial clicked"];
-    [self.adEventDelegate reportClick];
-    [self.adEventDelegate willBackgroundApplication];
+    [self.parentRenderer.adEventDelegate reportClick];
+    [self.parentRenderer.adEventDelegate willBackgroundApplication];
 }
 
 #pragma mark - Video Playback Delegate

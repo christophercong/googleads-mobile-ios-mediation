@@ -28,7 +28,6 @@
 
 @implementation AppLovinRtbAdapter
 
-static NSString *const kAppLovinRtbAdapterErrorDomain = @"com.applovin.AppLovinRtbAdapter";
 static NSMutableSet<ALSdk *> *ALGlobalSdkSet;
 
 + (void)initialize {
@@ -43,7 +42,7 @@ static NSMutableSet<ALSdk *> *ALGlobalSdkSet;
     self.rewardedRenderer = nil;
 }
 
-#pragma mark GADRTBAdapter
+#pragma mark - GADRTBAdapter
 
 + (void)setUp {}
 
@@ -101,17 +100,18 @@ static NSMutableSet<ALSdk *> *ALGlobalSdkSet;
         [GADMAdapterAppLovinUtils log:@"Generated bid token %@", signal];
         handler(signal, nil);
     } else {
+        NSString *errorMessage = @"Failed to generate bid token";
         NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
                                              code:kGADErrorMediationAdapterError
                                          userInfo:@{
                                                     NSLocalizedFailureReasonErrorKey : @"Failed to generate bid token"
                                                     }];
-        [GADMAdapterAppLovinUtils log:@"Failed to generate bid token"];
+        [GADMAdapterAppLovinUtils log:errorMessage];
         handler(nil, error);
     }
 }
 
-#pragma mark GADRTBAdapter Render Ad
+#pragma mark - GADRTBAdapter Render Ad
 
 - (void)renderBannerForAdConfiguration:(GADMediationBannerAdConfiguration *)adConfiguration
                      completionHandler:(GADBannerRenderCompletionHandler)completionHandler {

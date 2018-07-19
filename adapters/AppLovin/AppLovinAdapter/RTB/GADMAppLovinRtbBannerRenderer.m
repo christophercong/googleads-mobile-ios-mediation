@@ -12,7 +12,13 @@
 
 #import <AppLovinSDK/AppLovinSDK.h>
 
-@interface GADMAppLovinRtbBannerRenderer () <GADMediationBannerAd, ALAdLoadDelegate, ALAdDisplayDelegate, ALAdViewEventDelegate>
+/// Banner Delegate.
+@interface GADMAppLovinRtbBannerDelegate : NSObject <ALAdLoadDelegate, ALAdDisplayDelegate, ALAdViewEventDelegate>
+@property (nonatomic, weak) GADMAppLovinRtbBannerRenderer *parentRenderer;
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbBannerRenderer *)parentRenderer;
+@end
+
+@interface GADMAppLovinRtbBannerRenderer () <GADMediationBannerAd>
 
 /// Data used to render an RTB banner ad.
 @property (nonatomic, strong) GADMediationBannerAdConfiguration *adConfiguration;
@@ -25,7 +31,7 @@
 
 /// Controlled Properties
 @property (nonatomic, strong) ALSdk *sdk;
-@property (nonatomic, assign) ALAdSize *adSize;
+@property (nonatomic, strong) ALAdSize *adSize;
 @property (nonatomic, strong) ALAdView *adView;
 
 @end
@@ -33,7 +39,7 @@
 @implementation GADMAppLovinRtbBannerRenderer
 
 - (instancetype)initWithAdConfiguration:(GADMediationBannerAdConfiguration *)adConfiguration
-                      completionHandler:(nonnull GADBannerRenderCompletionHandler)handler {
+                      completionHandler:(GADBannerRenderCompletionHandler)handler {
     self = [super init];
     if (self) {
         self.adConfiguration = adConfiguration;
@@ -50,18 +56,19 @@
     if (self.adSize) {
         // Create adview object
         self.adView = [[ALAdView alloc] initWithSdk:self.sdk size:self.adSize];
-        self.adView.adLoadDelegate = self;
-        self.adView.adDisplayDelegate = self;
-        self.adView.adEventDelegate = self;
+        
+        GADMAppLovinRtbBannerDelegate *delegate = [[GADMAppLovinRtbBannerDelegate alloc] initWithParentRenderer:self];
+        self.adView.adDisplayDelegate = delegate;
+        self.adView.adEventDelegate = delegate;
         
         // Load ad
-        [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:self];
+        [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:delegate];
     } else {
         NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
                                              code:kGADErrorMediationInvalidAdSize
                                          userInfo:@{
                                                     NSLocalizedFailureReasonErrorKey :
-                                                        @"Failed to reuqest banner with unsupported size"
+                                                        @"Failed to request banner with unsupported size"
                                                     }];
         self.renderCompletionHandler(nil, error);
     }
@@ -73,13 +80,28 @@
     return self.adView;
 }
 
+@end
+
+@implementation GADMAppLovinRtbBannerDelegate
+
+#pragma mark - Initialization
+
+- (instancetype)initWithParentRenderer:(GADMAppLovinRtbBannerRenderer *)parentRenderer {
+    self = [super init];
+    if (self) {
+        self.parentRenderer = parentRenderer;
+    }
+    return self;
+}
+
 #pragma mark - Ad Load Delegate
 
 - (void)adService:(ALAdService *)adService didLoadAd:(ALAd *)ad {
     [GADMAdapterAppLovinUtils log:@"Banner did load ad: %@", ad.adIdNumber];
     
-    self.adEventDelegate = self.renderCompletionHandler(self, nil);
-    [self.adView render:ad];
+    self.parentRenderer.adEventDelegate = self.parentRenderer.renderCompletionHandler(self, nil);
+    
+    [self.parentRenderer.adView render:ad];
 }
 
 - (void)adService:(ALAdService *)adService didFailToLoadAdWithError:(int)code {
@@ -88,14 +110,14 @@
     NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
                                          code:[GADMAdapterAppLovinUtils toAdMobErrorCode:code]
                                      userInfo:nil];
-    self.renderCompletionHandler(nil, error);
+    self.parentRenderer.renderCompletionHandler(nil, error);
 }
 
 #pragma mark - Ad Display Delegate
 
 - (void)ad:(ALAd *)ad wasDisplayedIn:(UIView *)view {
     [GADMAdapterAppLovinUtils log:@"Banner displayed"];
-    [self.adEventDelegate reportImpression];
+    [self.parentRenderer.adEventDelegate reportImpression];
 }
 
 - (void)ad:(ALAd *)ad wasHiddenIn:(UIView *)view {
@@ -104,29 +126,29 @@
 
 - (void)ad:(ALAd *)ad wasClickedIn:(UIView *)view {
     [GADMAdapterAppLovinUtils log:@"Banner clicked"];
-    [self.adEventDelegate reportClick];
+    [self.parentRenderer.adEventDelegate reportClick];
 }
 
 #pragma mark - Ad View Event Delegate
 
 - (void)ad:(ALAd *)ad didPresentFullscreenForAdView:(ALAdView *)adView {
     [GADMAdapterAppLovinUtils log:@"Banner presented fullscreen"];
-    [self.adEventDelegate willPresentFullScreenView];
+    [self.parentRenderer.adEventDelegate willPresentFullScreenView];
 }
 
 - (void)ad:(ALAd *)ad willDismissFullscreenForAdView:(ALAdView *)adView {
     [GADMAdapterAppLovinUtils log:@"Banner will dismiss fullscreen"];
-    [self.adEventDelegate willDismissFullScreenView];
+    [self.parentRenderer.adEventDelegate willDismissFullScreenView];
 }
 
 - (void)ad:(ALAd *)ad didDismissFullscreenForAdView:(ALAdView *)adView {
     [GADMAdapterAppLovinUtils log:@"Banner did dismiss fullscreen"];
-    [self.adEventDelegate didDismissFullScreenView];
+    [self.parentRenderer.adEventDelegate didDismissFullScreenView];
 }
 
 - (void)ad:(ALAd *)ad willLeaveApplicationForAdView:(ALAdView *)adView {
     [GADMAdapterAppLovinUtils log:@"Banner left application"];
-    [self.adEventDelegate willBackgroundApplication];
+    [self.parentRenderer.adEventDelegate willBackgroundApplication];
 }
 
 - (void)ad:(ALAd *)ad didFailToDisplayInAdView:(ALAdView *)adView withError:(ALAdViewDisplayErrorCode)code {
