@@ -71,7 +71,7 @@
     [self.sdk.adService loadNextAdForAdToken:self.adConfiguration.bidResponse andNotify:delegate];
 }
 
-#pragma mark - GADMediationInterstitialAd
+#pragma mark - GADMediationRewardedAd
 
 - (void)presentFromViewController:(UIViewController *)viewController {
     // Update mute state
