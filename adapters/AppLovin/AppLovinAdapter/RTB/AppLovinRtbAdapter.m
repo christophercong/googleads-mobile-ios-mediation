@@ -18,7 +18,6 @@
 
 @interface AppLovinRtbAdapter ()
 // Controlled Properties
-@property (nonatomic, copy) GADMediationServerConfiguration *configuration;
 @property (nonatomic, copy) GADRTBSignalCompletionHandler signalCompletionHandler;
 
 @property (nonatomic, strong) GADMAppLovinRtbBannerRenderer *bannerRenderer;
@@ -104,7 +103,7 @@ static NSMutableSet<ALSdk *> *ALGlobalSdkSet;
         NSError *error = [NSError errorWithDomain:GADMAdapterAppLovinConstant.rtbErrorDomain
                                              code:kGADErrorMediationAdapterError
                                          userInfo:@{
-                                                    NSLocalizedFailureReasonErrorKey : @"Failed to generate bid token"
+                                                    NSLocalizedFailureReasonErrorKey : errorMessage
                                                     }];
         [GADMAdapterAppLovinUtils log:errorMessage];
         handler(nil, error);
