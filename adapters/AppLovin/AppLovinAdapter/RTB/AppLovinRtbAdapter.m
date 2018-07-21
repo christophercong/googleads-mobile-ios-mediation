@@ -18,8 +18,6 @@
 
 @interface AppLovinRtbAdapter ()
 // Controlled Properties
-@property (nonatomic, copy) GADRTBSignalCompletionHandler signalCompletionHandler;
-
 @property (nonatomic, strong) GADMAppLovinRtbBannerRenderer *bannerRenderer;
 @property (nonatomic, strong) GADMAppLovinRtbInterstitialRenderer *interstitialRenderer;
 @property (nonatomic, strong) GADMAppLovinRtbRewardedRenderer *rewardedRenderer;
@@ -86,8 +84,6 @@ static NSMutableSet<ALSdk *> *ALGlobalSdkSet;
 
 - (void)collectSignalsForRequestParameters:(nonnull GADMediationRequestParameters *)params
                          completionHandler:(nonnull GADRTBSignalCompletionHandler)handler {
-    self.signalCompletionHandler = handler;
-    
     if (params) {
         [GADMAdapterAppLovinUtils log:@"Extras for signal collection: %@", params.extras];
     }
